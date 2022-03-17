@@ -7,12 +7,10 @@ namespace duckdb {
 constexpr idx_t list_index_size = sizeof(variant_index_type);
 
 static Value BufferToBlob(LogicalTypeId type_id, const void *data, idx_t size) {
-	Value result(LogicalType::BLOB);
-	result.is_null = false;
-	result.str_value.reserve(size + 1);
-	result.str_value.push_back(static_cast<uint8_t>(type_id));
-	result.str_value.append((const char *)data, size);
-	return result;
+	char type = static_cast<char>(type_id);
+	string buffer(&type, 1);
+	buffer.copy((char*)data, size, 0);
+	return Value::BLOB_RAW(buffer);
 }
 
 #define FIXED_VARIANT(TYPE, TYPE_ID)                         \
@@ -108,11 +106,11 @@ static void ValueToBlob(const Value &value, string &result) {
 	switch (type.InternalType()) {
 
 	case PhysicalType::VARCHAR:
-		result += value.str_value;
+		result += StringValue::Get(value);
 		return;
 
 	case PhysicalType::LIST: {
-		const auto &list = value.list_value;
+		const auto &list = ListValue::GetChildren(value);
 		variant_index_type list_size = (variant_index_type)list.size();
 		if (list_size == 0) {
 			return;
@@ -159,7 +157,7 @@ static void ValueToBlob(const Value &value, string &result) {
 	}
 
 	case PhysicalType::STRUCT: {
-		const auto &list = value.struct_value;
+		const auto &list = StructValue::GetChildren(value);
 		if (list.empty()) {
 			return;
 		}
@@ -201,14 +199,10 @@ static void ValueToBlob(const Value &value, string &result) {
 }
 
 Value DUCKDB_API Variant(const Value &value) {
-	Value result(LogicalType::BLOB);
-	if (value.IsNull()) {
-		return result;
-	}
-	result.is_null = false;
-	TypeToBlob(value.type(), result.str_value);
-	ValueToBlob(value, result.str_value);
-	return result;
+	string buffer;
+	TypeToBlob(value.type(), buffer);
+	ValueToBlob(value, buffer);
+	return Value::BLOB_RAW(buffer);
 }
 
 [[noreturn]] static void BadVariant() {
