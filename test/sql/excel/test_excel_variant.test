@@ -4,6 +4,50 @@
 
 require excel
 
+# for example
+statement ok
+CREATE TABLE example (name VARCHAR, vf BLOB);
+
+statement ok
+INSERT INTO example VALUES ('tom', VARIANT(4));
+
+statement ok
+INSERT INTO example VALUES ('alex', VARIANT('abc'));
+
+statement ok
+INSERT INTO example VALUES ('sarah', VARIANT([1,2,3]));
+
+statement ok
+INSERT INTO example VALUES ('bruno', VARIANT({'x':4, 'y':'def'}));
+
+query TI
+SELECT * FROM example;
+----
+tom	\x0D\x04\x00\x00\x00	
+alex	\x19abc	
+sarah	e\x0D\x03\x00\x00\x00\x00\x01\x00\x00\x00\x02\x00\x00\x00\x03\x00\x00\x00	
+bruno	d\x08\x00\x00\x00\x0E\x00\x00\x00\x01\x00\x00\x00x\x0D\x01\x00\x00\x00y\x19\x00\x0C\x00\x00\x00\x10\x00\x00\x00\x13\x00\x00\x00\x04\x00\x00\x00def
+
+query TI
+SELECT * FROM (SELECT name, FROM_VARIANT('INTEGER', vf) AS vv FROM example) WHERE vv = 4;
+----
+tom	4
+
+query T
+SELECT FROM_VARIANT('VARCHAR', vf) FROM example WHERE name = 'alex';
+----
+abc
+
+query I
+SELECT * FROM (SELECT FROM_VARIANT('INTEGER[]', vf) AS va FROM example) WHERE va[1] = 1;
+----
+[1, 2, 3]
+
+query T
+SELECT st.y FROM (SELECT FROM_VARIANT('STRUCT(x INTEGER, y VARCHAR)', vf) AS st FROM example) WHERE st.x = 4;
+----
+def
+
 statement ok
 CREATE TYPE enum_type AS ENUM ('one', 'two', 'three');
 
