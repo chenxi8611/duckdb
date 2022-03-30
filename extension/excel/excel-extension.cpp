@@ -73,10 +73,18 @@ static void VariantFunction(DataChunk &args, ExpressionState &state, Vector &res
 }
 
 static void FromVariantFunction(DataChunk &args, ExpressionState &state, Vector &result) {
+	bool is_constant = true;
+	for (idx_t i = 1; i < args.ColumnCount(); ++i) {
+		if (args.data[i].GetVectorType() != VectorType::CONSTANT_VECTOR) {
+			is_constant = false;
+			break;
+		}
+	}
+	result.SetVectorType(is_constant ? VectorType::CONSTANT_VECTOR : VectorType::FLAT_VECTOR);
 	auto &type = result.GetType();
 	for (idx_t i_row = 0; i_row < args.size(); ++i_row) {
 		Value val = FromVariant(args.GetValue(1, i_row));
-		Value *vp = &val;
+		const Value *vp = &val;
 		for (idx_t i_idx = 2; i_idx < args.ColumnCount(); ++i_idx) {
 			if (vp->IsNull()) {
 				goto set_null;
@@ -95,8 +103,8 @@ static void FromVariantFunction(DataChunk &args, ExpressionState &state, Vector 
 					if (i >= child_types.size()) {
 						goto set_null;
 					}
-					if (child_types[i].first == val_idx.str_value) {
-						vp = &vp->struct_value[i];
+					if (child_types[i].first == StringValue::Get(val_idx)) {
+						vp = &StructValue::GetChildren(*vp)[i];
 						break;
 					}
 				}
@@ -111,10 +119,10 @@ static void FromVariantFunction(DataChunk &args, ExpressionState &state, Vector 
 					goto set_null;
 				}
 				variant_index_type idx = val_idx.GetValue<variant_index_type>();
-				if (idx >= vp->list_value.size()) {
+				if (idx >= ListValue::GetChildren(*vp).size()) {
 					goto set_null;
 				}
-				vp = &vp->list_value[idx];
+				vp = &ListValue::GetChildren(*vp)[idx];
 				break;
 			}
 			default:
@@ -126,14 +134,18 @@ static void FromVariantFunction(DataChunk &args, ExpressionState &state, Vector 
 		}
 		if (vp->type() != type) {
 			auto cost = CastRules::ImplicitCast(vp->type(), type);
-			if (cost < 0 || cost > 120 || !vp->TryCastAs(type)) {
+			if (cost < 0 || cost > 120 || !const_cast<Value *>(vp)->TryCastAs(type)) {
 				goto set_null;
 			}
 		}
 		result.SetValue(i_row, *vp);
 		continue;
 	set_null:
-		FlatVector::SetNull(result, i_row, true);
+		if (is_constant) {
+			ConstantVector::SetNull(result, true);
+		} else {
+			FlatVector::SetNull(result, i_row, true);
+		}
 	}
 }
 
@@ -152,7 +164,12 @@ unique_ptr<FunctionData> FromVariantBind(ClientContext &context, ScalarFunction 
 			throw InvalidInputException("indices must be of string or integer type");
 		}
 	}
-	bound_function.return_type = TransformStringToLogicalType(type_str.str_value);
+	LogicalTypeId return_type_id = TransformStringToLogicalTypeId(StringValue::Get(type_str));
+	if (return_type_id == LogicalTypeId::USER) {
+		bound_function.return_type = TransformStringToLogicalType(StringValue::Get(type_str));
+	} else {
+		bound_function.return_type = return_type_id;
+	}
 	return nullptr;
 }
 
