@@ -14,13 +14,13 @@ statement error
 INSTALL 'asdf/asdf.duckdb_extension';
 
 statement ok
-INSTALL '__BUILD_DIRECTORY__/test/extension/loadable_extension_demo.duckdb_extension';
+INSTALL '__BUILD_DIRECTORY__/test/extension/loadable_extension_variant.duckdb_extension';
 
 statement ok
-FORCE INSTALL '__BUILD_DIRECTORY__/test/extension/loadable_extension_demo.duckdb_extension';
+FORCE INSTALL '__BUILD_DIRECTORY__/test/extension/loadable_extension_variant.duckdb_extension';
 
 statement ok
-LOAD 'loadable_extension_demo';
+LOAD 'loadable_extension_variant';
 
 statement error
-LOAD 'loadable_extension_demo';
+LOAD 'loadable_extension_variant';

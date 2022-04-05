@@ -1,8 +1,9 @@
-# name: test/sql/excel/test_excel_variant.test
+# name: test/extension/test_variant.test
 # description: Test Variant SQL functions
-# group: [excel]
+# group: [extension]
 
-require excel
+statement ok
+LOAD '__BUILD_DIRECTORY__/test/extension/loadable_extension_variant.duckdb_extension';
 
 # for example
 statement ok
