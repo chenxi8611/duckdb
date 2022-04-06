@@ -12,6 +12,7 @@ struct always_false : std::false_type {};
 template <typename T>
 Value Variant(T value) {
 	static_assert(always_false<T>::value, "Cannot convert type to Variant");
+	return Value();
 }
 
 template <>
